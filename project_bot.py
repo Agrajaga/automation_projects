@@ -75,16 +75,16 @@ def find_student(tg_username: str) -> tuple[bool, str]:
 
 
 def get_active_project_status(context) -> int:
-    return context.chat_data.get("project_status", NO_ACTIVE_PROJECT)
+    return context.user_data.get("project_status", NO_ACTIVE_PROJECT)
 
 
 def change_status(update: Update, context: CallbackContext):
-    if context.chat_data["project_status"] == ACTIVE_PROJECT:
-        context.chat_data["project_status"] = NO_ACTIVE_PROJECT
+    if context.user_data["project_status"] == ACTIVE_PROJECT:
+        context.user_data["project_status"] = NO_ACTIVE_PROJECT
     else:
-        context.chat_data["project_status"] += 1
+        context.user_data["project_status"] += 1
     update.message.reply_text(
-        f"статус изменен на {text_status[context.chat_data['project_status']]}")
+        f"статус изменен на {text_status[context.user_data['project_status']]}")
 
 
 def get_group_description(student_id: str) -> str:
@@ -110,16 +110,16 @@ def check_user(update: Update, context: CallbackContext) -> None:
 
 
 def check_project_status(update: Update, context: CallbackContext) -> None:
-    context.chat_data["project_status"] = get_active_project_status(context)
-    if context.chat_data["project_status"] == NO_ACTIVE_PROJECT:
+    context.user_data["project_status"] = get_active_project_status(context)
+    if context.user_data["project_status"] == NO_ACTIVE_PROJECT:
         update.message.reply_text(
             "Сейчас нет активного проекта. Как только он появится я тебе напишу")
         raise DispatcherHandlerStop()
-    if context.chat_data["project_status"] == WAIT_REGISTRATION:
+    if context.user_data["project_status"] == WAIT_REGISTRATION:
         update.message.reply_text(
             "Подожди пока формируем группы, как будет готово - напишу")
         raise DispatcherHandlerStop()
-    if context.chat_data["project_status"] == ACTIVE_PROJECT:
+    if context.user_data["project_status"] == ACTIVE_PROJECT:
         group_description = get_group_description(
             context.user_data["student_id"])
         update.message.reply_text(group_description)
@@ -175,9 +175,10 @@ def unknow_command(update: Update, context: CallbackContext) -> None:
 
 
 def start_conversation(update: Update, context: CallbackContext) -> int:
-    context.user_data["weeks"] = get_weeks()
+    context.chat_data.clear()
+    context.chat_data["weeks"] = get_weeks()
     keyboard = [[KeyboardButton(week)]
-                for week in context.user_data["weeks"].keys()]
+                for week in context.chat_data["weeks"].keys()]
     keyboard.append([KeyboardButton("не смогу принять участие")])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     update.message.reply_text(
@@ -192,18 +193,19 @@ def select_week(update: Update, context: CallbackContext) -> int:
         update.message.reply_text(
             "Очень жаль. Тогда эту неделю работай со своим ментором",
             reply_markup=ReplyKeyboardRemove())
-        finish_registration()
+        context.chat_data["cancel_project"] = True
+        finish_registration(update, context)
         return ConversationHandler.END
-    week_id = context.user_data["weeks"].get(answer)
+    week_id = context.chat_data["weeks"].get(answer)
     if not week_id:
         update.message.reply_text("Выбери неделю для участия в проекте")
         return SELECT_WEEK
-    context.user_data["select_week_id"] = week_id
-    context.user_data["select_week"] = answer
+    context.chat_data["select_week_id"] = week_id
+    context.chat_data["select_week"] = answer
 
-    context.user_data["time_ranges"] = get_time_ranges(week_id)
+    context.chat_data["time_ranges"] = get_time_ranges(week_id)
     keyboard = [[KeyboardButton(time_range)]
-                for time_range in context.user_data["time_ranges"].keys()]
+                for time_range in context.chat_data["time_ranges"].keys()]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     update.message.reply_text(
         "На этой неделе есть время для созвонов",
@@ -213,12 +215,12 @@ def select_week(update: Update, context: CallbackContext) -> int:
 
 def select_time_range(update: Update, context: CallbackContext) -> int:
     answer = update.message.text
-    time_range_id = context.user_data["time_ranges"].get(answer)
+    time_range_id = context.chat_data["time_ranges"].get(answer)
     if not time_range_id:
         update.message.reply_text("Выбери время для созвонов")
         return SELECT_TIME_RANGE
-    context.user_data["select_time_range_id"] = time_range_id
-    context.user_data["select_time_range"] = answer
+    context.chat_data["select_time_range_id"] = time_range_id
+    context.chat_data["select_time_range"] = answer
     keyboard = [
         [KeyboardButton("в любое")],
         [KeyboardButton("уточнить")],
@@ -236,41 +238,42 @@ def ask_any_time(update: Update, context: CallbackContext) -> int:
         finish_registration(update, context)
         return ConversationHandler.END
     if answer == "уточнить":
-        context.user_data["adjust_time_ranges"] = get_adjust_time_ranges(
-            context.user_data["select_time_range_id"])
+        context.chat_data["adjust_time_ranges"] = get_adjust_time_ranges(
+            context.chat_data["select_time_range_id"])
         keyboard = [[KeyboardButton(
-            time_range)] for time_range in context.user_data["adjust_time_ranges"].keys()]
+            time_range)] for time_range in context.chat_data["adjust_time_ranges"].keys()]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         update.message.reply_text(
             "Уточни время",
             reply_markup=reply_markup)
         return ADJUST_TIME
     update.message.reply_text(
-        f"В промежутке {context.user_data['select_time_range']} ты доступен в любое время?")
+        f"В промежутке {context.chat_data['select_time_range']} ты доступен в любое время?")
     return ASK_ANY_TIME
 
 
 def adjust_time(update: Update, context: CallbackContext) -> int:
     answer = update.message.text
-    time_range_id = context.user_data["adjust_time_ranges"].get(answer)
+    time_range_id = context.chat_data["adjust_time_ranges"].get(answer)
     if not time_range_id:
         update.message.reply_text("Уточни время")
         return ADJUST_TIME
-    context.user_data["select_time_range_id"] = time_range_id
-    context.user_data["select_time_range"] = answer
+    context.chat_data["select_time_range_id"] = time_range_id
+    context.chat_data["select_time_range"] = answer
     finish_registration(update, context)
     return ConversationHandler.END
 
 
 def finish_registration(update: Update, context: CallbackContext):
-    text = [
-        "Ок, подытожим:",
-        "ты хочешь принять участие в проекте",
-        f"на неделе {context.user_data['select_week']},",
-        f"время созвонов {context.user_data['select_time_range']}",
-    ]
-    update.message.reply_text(
-        "\n".join(text), reply_markup=ReplyKeyboardRemove())
+    if not context.chat_data["cancel_project"]:
+        text = [
+            "Ок, подытожим:",
+            "ты хочешь принять участие в проекте",
+            f"на неделе {context.chat_data['select_week']},",
+            f"время созвонов {context.chat_data['select_time_range']}",
+        ]
+        update.message.reply_text(
+            "\n".join(text), reply_markup=ReplyKeyboardRemove())
     change_status(update, context)
 
 
