@@ -58,13 +58,23 @@ myusers = {
     ACTIVE_PROJECT,
 ) = range(1, 5)
 
-# Для отладки
+##### Для отладки #####
 text_status = {
     NO_ACTIVE_PROJECT: "Нет активного проекта",
     NEW_PROJECT: "Стартует новый проект",
     WAIT_REGISTRATION: "Ожидание формирования групп",
     ACTIVE_PROJECT: "Группы сформированы"
 }
+
+
+def change_status(update: Update, context: CallbackContext):
+    if context.user_data["project_status"] == ACTIVE_PROJECT:
+        context.user_data["project_status"] = NO_ACTIVE_PROJECT
+    else:
+        context.user_data["project_status"] += 1
+    update.message.reply_text(
+        f"статус изменен на {text_status[context.user_data['project_status']]}")
+########################
 
 
 def find_student(tg_username: str) -> tuple[bool, str]:
@@ -78,15 +88,6 @@ def get_active_project_status(context) -> int:
     return context.user_data.get("project_status", NO_ACTIVE_PROJECT)
 
 
-def change_status(update: Update, context: CallbackContext):
-    if context.user_data["project_status"] == ACTIVE_PROJECT:
-        context.user_data["project_status"] = NO_ACTIVE_PROJECT
-    else:
-        context.user_data["project_status"] += 1
-    update.message.reply_text(
-        f"статус изменен на {text_status[context.user_data['project_status']]}")
-
-
 def get_group_description(student_id: str) -> str:
     desc = [
         "Созвон вашей группы с 18:00 до 18:30",
@@ -94,36 +95,6 @@ def get_group_description(student_id: str) -> str:
         "Вот описание проекта: https://docs.google.com/",
     ]
     return "\n".join(desc)
-
-
-def check_user(update: Update, context: CallbackContext) -> None:
-    if context.user_data.get("student_name"):
-        return
-    user = update.effective_user
-    is_student, student_id, student_name = find_student(user.username)
-    if not is_student:
-        update.message.reply_text(
-            "Этот чат только для студентов курсов Devman")
-        raise DispatcherHandlerStop()
-    context.user_data["student_id"] = student_id
-    context.user_data["student_name"] = student_name
-
-
-def check_project_status(update: Update, context: CallbackContext) -> None:
-    context.user_data["project_status"] = get_active_project_status(context)
-    if context.user_data["project_status"] == NO_ACTIVE_PROJECT:
-        update.message.reply_text(
-            "Сейчас нет активного проекта. Как только он появится я тебе напишу")
-        raise DispatcherHandlerStop()
-    if context.user_data["project_status"] == WAIT_REGISTRATION:
-        update.message.reply_text(
-            "Подожди пока формируем группы, как будет готово - напишу")
-        raise DispatcherHandlerStop()
-    if context.user_data["project_status"] == ACTIVE_PROJECT:
-        group_description = get_group_description(
-            context.user_data["student_id"])
-        update.message.reply_text(group_description)
-        raise DispatcherHandlerStop
 
 
 def get_weeks() -> dict:
@@ -156,6 +127,36 @@ def get_adjust_time_ranges(range_id):
             "с 19 до 20": "454545",
         }
     }[range_id]
+
+
+def check_user(update: Update, context: CallbackContext) -> None:
+    if context.user_data.get("student_name"):
+        return
+    user = update.effective_user
+    is_student, student_id, student_name = find_student(user.username)
+    if not is_student:
+        update.message.reply_text(
+            "Этот чат только для студентов курсов Devman")
+        raise DispatcherHandlerStop()
+    context.user_data["student_id"] = student_id
+    context.user_data["student_name"] = student_name
+
+
+def check_project_status(update: Update, context: CallbackContext) -> None:
+    context.user_data["project_status"] = get_active_project_status(context)
+    if context.user_data["project_status"] == NO_ACTIVE_PROJECT:
+        update.message.reply_text(
+            "Сейчас нет активного проекта. Как только он появится я тебе напишу")
+        raise DispatcherHandlerStop()
+    if context.user_data["project_status"] == WAIT_REGISTRATION:
+        update.message.reply_text(
+            "Подожди пока формируем группы, как будет готово - напишу")
+        raise DispatcherHandlerStop()
+    if context.user_data["project_status"] == ACTIVE_PROJECT:
+        group_description = get_group_description(
+            context.user_data["student_id"])
+        update.message.reply_text(group_description)
+        raise DispatcherHandlerStop
 
 
 def start(update: Update, context: CallbackContext) -> None:
@@ -265,7 +266,7 @@ def adjust_time(update: Update, context: CallbackContext) -> int:
 
 
 def finish_registration(update: Update, context: CallbackContext):
-    if not context.chat_data["cancel_project"]:
+    if not context.chat_data.get("cancel_project", False):
         text = [
             "Ок, подытожим:",
             "ты хочешь принять участие в проекте",
