@@ -141,6 +141,13 @@ def check_user(update: Update, context: CallbackContext) -> None:
     context.user_data["student_id"] = student_id
     context.user_data["student_name"] = student_name
 
+    context.job_queue.run_repeating(
+        calback_30,
+        interval=30,
+        first=10,
+        context=update.message.chat_id
+    )
+
 
 def check_project_status(update: Update, context: CallbackContext) -> None:
     context.user_data["project_status"] = get_active_project_status(context)
@@ -278,6 +285,11 @@ def finish_registration(update: Update, context: CallbackContext):
     change_status(update, context)
 
 
+def calback_30(context: CallbackContext):
+    context.bot.send_message(
+        chat_id=context.job.context, text='A single message with 30s delay')
+
+
 def main() -> None:
     load_dotenv()
     tg_token = os.getenv("TG_TOKEN")
@@ -310,7 +322,7 @@ def main() -> None:
 
     dispatcher.add_handler(MessageHandler(
         Filters.text & ~Filters.command, echo), 3)
-
+    dispatcher.update_persistence()
     updater.start_polling()
     updater.idle()
 
