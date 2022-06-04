@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from datetime import datetime
 import logging
 import os
 
@@ -78,6 +79,26 @@ def change_status(update: Update, context: CallbackContext):
 
 
 def find_student(tg_username: str) -> tuple[bool, str]:
+    db_answer = {
+        'id': '@Michalbl4',
+        'name': 'Михаил Миронов',
+        'level': 'novice',
+        'status': 3,
+        'start_time': datetime.time(19, 0),
+        'finish_time': datetime.time(20, 45),
+        'project_date': None,
+        'in_project': True,
+        'team_id': 2,
+        'current_team': 'DVMN Май #1',
+        'call_time': datetime.time(8, 47, 49),
+        'students': [
+            'Михаил @DontPanic_42',
+            'Михаил Миронов @Michalbl4',
+            ' @belgorod_admin'
+        ],
+        'PM': 'Тим Гайгеров'
+    }
+    
     myuser = myusers.get(tg_username)
     if myuser:
         return (True, myuser["id"], myuser["first_name"])
@@ -130,9 +151,6 @@ def get_adjust_time_ranges(range_id):
 
 
 def check_user(update: Update, context: CallbackContext) -> None:
-    if context.user_data.get("student_name"):
-        return
-    user = update.effective_user
     is_student, student_id, student_name = find_student(user.username)
     if not is_student:
         update.message.reply_text(
@@ -150,7 +168,6 @@ def check_user(update: Update, context: CallbackContext) -> None:
 
 
 def check_project_status(update: Update, context: CallbackContext) -> None:
-    context.user_data["project_status"] = get_active_project_status(context)
     if context.user_data["project_status"] == NO_ACTIVE_PROJECT:
         update.message.reply_text(
             "Сейчас нет активного проекта. Как только он появится я тебе напишу")
